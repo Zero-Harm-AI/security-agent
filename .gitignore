@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Engagement-specific config and evidence must never be committed
+config/engagement.yaml
+evidence/
+*.log

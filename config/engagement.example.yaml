@@ -1,0 +1,31 @@
+# Example engagement configuration.
+# Copy to config/engagement.yaml and fill in per authorized engagement.
+# The agent refuses to run against anything not listed here.
+
+engagement:
+  name: "example-staging-assessment"
+  authorized_by: ""          # Name/role of person who signed off, in writing
+  authorization_ref: ""      # Ticket / document reference for the written authorization
+
+scope:
+  # Only these targets may ever be touched. Empty lists mean "nothing permitted".
+  domains: []                # e.g. ["staging.example.com"]
+  ip_ranges: []              # e.g. ["10.0.5.0/24"]
+  excluded: []               # Explicitly out of scope, overrides everything above
+
+  time_windows: []           # e.g. ["2026-11-01T00:00/2026-11-03T00:00"]
+  rate_limit_rps: 5          # Conservative default
+
+permissions:
+  active_scanning: false     # Flip on only when authorized
+  automated_exploitation: false
+  destructive_checks: false
+  production_testing: false
+
+reporting:
+  evidence_dir: "evidence"
+  redact_secrets: true
+
+# Human approval is required before any phase that the permissions above
+# do not already allow. The agent proposes bounded actions and waits.
+require_human_approval: true
