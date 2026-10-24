@@ -1,4 +1,4 @@
-# AI Agent Architectures
+# Agent Architecture
 
 This document explains how the `security-agent` scaffold in this repository is
 structured, and how that compares to other common ways of building AI agents.
@@ -7,11 +7,15 @@ way as this one?* The short answer is no — this scaffold is one design among
 many, shaped heavily by its specific problem (authorized, human-supervised
 security testing) rather than by a universal template.
 
+For the security-testing workflow this scaffold implements, see
+[`SECURITY-TESTING-ARCHITECTURE.md`](SECURITY-TESTING-ARCHITECTURE.md).
+
 ## 1. How this `security-agent` is built
 
-The scaffold (see [`ARCHITECTURE.md`](../ARCHITECTURE.md) for the workflow it
-implements) is a **deterministic, pipeline-shaped orchestrator with safety
-gates**. Its main parts:
+The scaffold (see
+[`SECURITY-TESTING-ARCHITECTURE.md`](SECURITY-TESTING-ARCHITECTURE.md) for the
+workflow it implements) is a **deterministic, pipeline-shaped orchestrator with
+safety gates**. Its main parts:
 
 | Part | File | Role |
 | --- | --- | --- |
@@ -27,7 +31,8 @@ gates**. Its main parts:
   There is no model deciding what to do next.
 - **No LLM reasoning loop (yet).** Nothing in the current code calls a language
   model. The "AI" capability (e.g. an agent like Strix or Fennec, per
-  `ARCHITECTURE.md`) would be plugged into the components later.
+  [`SECURITY-TESTING-ARCHITECTURE.md`](SECURITY-TESTING-ARCHITECTURE.md)) would
+  be plugged into the components later.
 - **Safety-first, fail-closed.** Scope enforcement and refuse-by-default
   approval are central, because acting out of bounds in a security context is
   harmful.
@@ -121,8 +126,9 @@ results.
 - **Weakness:** coordination overhead, higher cost, harder to debug end-to-end.
 - **Contrast with this repo:** the `components/` here are *modules* called by one
   orchestrator in sequence, not autonomous agents negotiating with each other.
-  The security-testing agents referenced in `ARCHITECTURE.md` (Strix, Fennec)
-  are themselves multi-agent internally.
+  The security-testing agents referenced in
+  [`SECURITY-TESTING-ARCHITECTURE.md`](SECURITY-TESTING-ARCHITECTURE.md) (Strix,
+  Fennec) are themselves multi-agent internally.
 
 ## 4. Summary
 

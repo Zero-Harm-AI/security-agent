@@ -6,6 +6,8 @@ This document describes an authorized offensive security testing workflow for sy
 
 The workflow is intended for controlled engagements, staging systems, and intentionally vulnerable labs. It is not an unattended scanning or exploitation service.
 
+For how the `security-agent` scaffold that implements this workflow is structured — and how it compares to other AI-agent designs — see [`AGENT-ARCHITECTURE.md`](AGENT-ARCHITECTURE.md).
+
 ## Offensive Testing Workflow
 
 ### 1. Define and enforce engagement scope

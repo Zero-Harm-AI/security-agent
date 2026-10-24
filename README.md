@@ -1,7 +1,7 @@
 # security-agent
 
 Scaffolding for an **authorized, human-supervised** security testing agent.
-The design and guardrails follow [`ARCHITECTURE.md`](ARCHITECTURE.md): the agent
+The design and guardrails follow [`docs/SECURITY-TESTING-ARCHITECTURE.md`](docs/SECURITY-TESTING-ARCHITECTURE.md): the agent
 only ever acts within a pre-approved engagement scope, proposes bounded actions,
 and defers to a human for anything beyond its standing permissions. Every
 component in this scaffold is a stub — the structure and safety gates are in
@@ -11,8 +11,10 @@ place, but no real testing is implemented yet.
 
 ```
 security-agent/
-├── ARCHITECTURE.md              # The workflow this project implements (unchanged)
 ├── pyproject.toml               # Package metadata, deps, console entry point
+├── docs/
+│   ├── SECURITY-TESTING-ARCHITECTURE.md  # Authorized testing workflow
+│   └── AGENT-ARCHITECTURE.md             # How the scaffold is built + agent designs
 ├── config/
 │   └── engagement.example.yaml  # Copy to engagement.yaml per engagement
 ├── src/security_agent/
