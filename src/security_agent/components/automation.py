@@ -9,8 +9,8 @@ class AutomationComponent(Component):
     phase = "automation"
 
     def run(self, targets: list[str]) -> list[Finding]:
-        for target in targets:
-            # Fail closed: never touch anything outside the authorized scope.
-            self.scope.require(target)
-        # TODO: implement the automation phase per ARCHITECTURE.md.
+        # Targets arrive already scope-checked by the orchestrator. Anything this
+        # phase derives itself (e.g. discovered hosts) must go through
+        # self.scope.require before it is touched.
+        # TODO: implement the automation phase per docs/SECURITY-TESTING-ARCHITECTURE.md.
         raise NotImplementedError("Automation phase is not implemented yet.")

@@ -3,9 +3,9 @@
 Scaffolding for an **authorized, human-supervised** security testing agent.
 The design and guardrails follow [`docs/SECURITY-TESTING-ARCHITECTURE.md`](docs/SECURITY-TESTING-ARCHITECTURE.md): the agent
 only ever acts within a pre-approved engagement scope, proposes bounded actions,
-and defers to a human for anything beyond its standing permissions. Every
-component in this scaffold is a stub — the structure and safety gates are in
-place, but no real testing is implemented yet.
+and defers to a human for anything beyond its standing permissions. The
+discovery and reporting phases are implemented; the infrastructure, webapp, and
+automation phases are still stubs.
 
 ## Layout
 
@@ -30,8 +30,32 @@ security-agent/
 │       ├── webapp.py            # Stub
 │       ├── automation.py        # Stub
 │       └── reporting.py         # Implemented: writes the report
-└── tests/                       # Placeholder tests for the guardrails
+└── tests/                       # Guardrail, discovery, evidence, and CLI tests
 ```
+
+## Requirements and platform
+
+The agent is pure Python and **cross-platform** — it runs on macOS, Windows, or
+Linux. You do **not** need a Linux machine.
+
+- **Python 3.10+**.
+- **Python dependencies** (installed from `pyproject.toml`): `pyyaml` and
+  `zero-harm-ai-detectors`; `pytest` and `ruff` via the `dev` extra.
+- **External tools** are invoked only by the testing phases, via `subprocess`.
+  They are optional and discovered at runtime — if a tool is missing, the phase
+  records an `inconclusive` finding (with the command it would have run) and the
+  pipeline continues rather than crashing.
+  - **`nmap`** (discovery phase) is cross-platform. On macOS: `brew install
+    nmap`; on Windows: the official installer; on Debian/Ubuntu:
+    `sudo apt install nmap`. Without it, discovery is skipped gracefully.
+  - Tools used by the not-yet-implemented phases (OWASP ZAP, mitmproxy,
+    Playwright, Wireshark, …) are likewise cross-platform.
+
+A few specialized tools in the broader architecture (e.g. **masscan**,
+**OpenVAS**) are easiest to run on Linux or in Docker. They are optional add-ons,
+not part of the implemented phases, so they don't affect where you run the
+agent. Running the agent in a Linux container is a convenience for a
+reproducible tool environment, never a requirement.
 
 ## Setup
 
@@ -56,7 +80,7 @@ be committed.
 # Validate config + scope without running any phase:
 security-agent --config config/engagement.yaml --dry-run
 
-# Full run (phases are stubs and will raise NotImplementedError today):
+# Full run (discovery + reporting; stubbed phases are skipped):
 security-agent --config config/engagement.yaml
 ```
 
@@ -64,34 +88,61 @@ security-agent --config config/engagement.yaml
 
 ```bash
 pytest
+ruff check .
 ```
+
+CI (`.github/workflows/ci.yml`) runs both on Python 3.10 and 3.13, on Linux and
+macOS. The tests never run nmap or touch the network: nmap, DNS, and the
+approval prompt are all replaced with fakes.
 
 ## Pipeline behavior
 
-`agent.run()` executes the phases in order. Implemented phases run; phases still
-stubbed are logged and skipped so the pipeline completes and the reporting phase
-can always write a report. A scope violation aborts the whole run (fail closed).
+Preflight (also run by `--dry-run`) refuses to start when the authorization
+reference or scope is missing, a scope entry is malformed, the current time is
+outside every `time_windows` entry, an in-scope domain resolves to an excluded
+address, or content scanning is unavailable (see below). Loading the config is
+strict: unknown keys and quoted booleans such as `active_scanning: "no"` are
+rejected rather than guessed at. A domain that resolves outside the configured
+`ip_ranges` is reported as a warning.
+
+`agent.run()` then scope-checks every target and executes the phases in order.
+Implemented phases run; phases still stubbed are logged and skipped. A scope or
+time-window violation, or any unexpected error, aborts the run (fail closed),
+and the report is still written with whatever was found before the abort.
+
+Scope rules: exclusions (domains, IPs, or CIDRs) override everything. A range
+that contains excluded addresses is still scanned, but those addresses are
+passed to the tool (`nmap --exclude`) so they are never touched.
 
 - **discovery** — builds a conservative `nmap` command (no version detection
-  unless `active_scanning` is enabled) and runs it only when the engagement
-  permits active scanning or a human approves. Results are recorded as findings.
+  unless `active_scanning` is enabled). A port scan is active scanning, so it
+  runs only when `active_scanning` is permitted or a human approves it. The raw
+  XML is saved under `<evidence_dir>/artifacts/` and parsed into one summary
+  finding plus one `lead` per open port.
 - **reporting** — serializes every collected finding to
   `<evidence_dir>/report.json`, grouping by confidence
   (confirmed / lead / inconclusive) and redacting in two layers: (1) values
-  under a sensitive key name (`password`, `token`, ...) are masked outright,
-  and (2) free-text values (scan output, URLs, headers) are scanned for PII and
-  secrets with the [`zero-harm-ai-detectors`](https://pypi.org/project/zero-harm-ai-detectors/)
-  library (heuristic mode). If that library is not installed, layer 2 is
-  skipped and `report.json` records `"content_scanning": false`.
+  under a sensitive-looking key (`password`, `access_token`, `Set-Cookie`,
+  `x-api-key`, ...) are masked outright, and (2) free-text values (scan output,
+  URLs, headers) are scanned for PII and secrets with the
+  [`zero-harm-ai-detectors`](https://pypi.org/project/zero-harm-ai-detectors/)
+  library (heuristic mode). The same scanning is applied to `audit.log`. If the
+  library cannot be imported, preflight refuses to run unless
+  `reporting.allow_unscanned_report: true`, and `report.json` then records
+  `"content_scanning": false`. Report and artifacts are written owner-only.
 - **infrastructure, webapp, automation** — still stubs; see below.
 
-Run with `--auto-approve` only for a run you are supervising and have
-authorized; otherwise every action beyond standing permissions prompts, and
-denies if there is no terminal to ask.
+Approval rules: actions within standing permissions pass (or prompt, if
+`require_human_approval: true`); actions beyond them always need approval;
+high-impact actions always need a human at the terminal. `--auto-approve`
+covers the first two only, so use it only for a run you are supervising and
+have authorized. With no terminal to ask, the gate denies. Every decision is
+written to `<evidence_dir>/audit.log`.
 
 ## Status
 
 Implementing a remaining phase means filling in that component's `run` method,
-keeping every target behind `ScopeGuard.require`, every action beyond standing
+keeping every target it derives itself (e.g. discovered hosts) behind
+`ScopeGuard.require` and honoring the exclusions it returns, every action beyond standing
 permissions behind the `ApprovalGate`, and recording findings via the injected
 `EvidenceStore` so the reporting phase picks them up.

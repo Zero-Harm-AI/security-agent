@@ -20,9 +20,9 @@ safety gates**. Its main parts:
 | Part | File | Role |
 | --- | --- | --- |
 | `EngagementConfig` | `src/security_agent/config.py` | Typed, validated engagement policy: who authorized it, the scope (domains, IP ranges, exclusions, time windows, rate limit), and off-by-default permissions. The single source of truth for what is authorized. |
-| `ScopeGuard` | `src/security_agent/scope.py` | Fail-closed target gate. Anything not explicitly in scope is denied. Enforces *where* the agent may act. |
-| `ApprovalGate` | `src/security_agent/approval.py` | Human-in-the-loop gate. The agent proposes bounded actions; a human confirms anything beyond standing permissions. Denies by default. Enforces *whether* an action may run. |
-| `components/` | `src/security_agent/components/` | One module per workflow phase (`discovery`, `infrastructure`, `webapp`, `automation`, `reporting`). Each `run(targets)` passes every target through `ScopeGuard` before acting. Currently stubs. |
+| `ScopeGuard` | `src/security_agent/scope.py` | Fail-closed target gate. Anything not explicitly in scope is denied; exclusions (domains, IPs, CIDRs) override everything and are handed to tools for ranges that contain them. Also enforces time windows and checks where in-scope domains resolve. Enforces *where* and *when* the agent may act. |
+| `ApprovalGate` | `src/security_agent/approval.py` | Human-in-the-loop gate. The agent proposes bounded actions; a human confirms anything beyond standing permissions. High-impact actions always need a human, even with `--auto-approve`. Denies by default and logs every decision. Enforces *whether* an action may run. |
+| `components/` | `src/security_agent/components/` | One module per workflow phase (`discovery`, `infrastructure`, `webapp`, `automation`, `reporting`). The orchestrator scope-checks every target before any phase runs, and each phase re-checks anything it derives itself. `discovery` (gated nmap scan, parsed into per-port findings) and `reporting` are implemented; `infrastructure`, `webapp`, and `automation` are stubs. |
 | `Agent` | `src/security_agent/agent.py` | Orchestrator + CLI entry point. Validates config in preflight, then runs the five components in a fixed order. |
 
 **Defining traits of this design:**

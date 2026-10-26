@@ -11,13 +11,16 @@ scope:
   # Only these targets may ever be touched. Empty lists mean "nothing permitted".
   domains: []                # e.g. ["staging.example.com"]
   ip_ranges: []              # e.g. ["10.0.5.0/24"]
-  excluded: []               # Explicitly out of scope, overrides everything above
+  excluded: []               # Domains, IPs, or CIDRs; overrides everything above
 
-  time_windows: []           # e.g. ["2026-11-01T00:00/2026-11-03T00:00"]
+  # Empty = no time restriction. ISO 8601 "<start>/<end>"; add Z or an offset
+  # for UTC/explicit zones, otherwise times are local.
+  time_windows: []           # e.g. ["2026-11-01T00:00Z/2026-11-03T00:00Z"]
   rate_limit_rps: 5          # Conservative default
 
+# Use unquoted true/false. Quoted values ("no") are rejected.
 permissions:
-  active_scanning: false     # Flip on only when authorized
+  active_scanning: false     # Port/service scanning without asking each time
   automated_exploitation: false
   destructive_checks: false
   production_testing: false
@@ -25,7 +28,10 @@ permissions:
 reporting:
   evidence_dir: "evidence"
   redact_secrets: true
+  # Refuse to run if PII/secret content scanning (zero-harm-ai-detectors) is
+  # unavailable. Set true only if key-name masking alone is acceptable.
+  allow_unscanned_report: false
 
-# Human approval is required before any phase that the permissions above
-# do not already allow. The agent proposes bounded actions and waits.
+# Actions the permissions above do not allow always need human approval.
+# Setting this to true also asks before actions they do allow.
 require_human_approval: true

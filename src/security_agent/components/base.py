@@ -5,12 +5,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from logging import Logger
-from typing import Any
+from typing import Any, Literal, get_args
 
 from ..approval import ApprovalGate
 from ..config import EngagementConfig
 from ..evidence import EvidenceStore
 from ..scope import ScopeGuard
+
+Confidence = Literal["confirmed", "lead", "inconclusive"]
 
 
 @dataclass
@@ -18,8 +20,14 @@ class Finding:
     phase: str
     target: str
     title: str
-    confidence: str = "lead"          # lead | confirmed | inconclusive
+    confidence: Confidence = "lead"
     evidence: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.confidence not in get_args(Confidence):
+            raise ValueError(
+                f"confidence must be one of {get_args(Confidence)}, got {self.confidence!r}"
+            )
 
 
 class Component(ABC):

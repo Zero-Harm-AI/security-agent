@@ -13,3 +13,6 @@ dist/
 config/engagement.yaml
 evidence/
 *.log
+
+# macOS
+.DS_Store

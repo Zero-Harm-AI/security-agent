@@ -10,13 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 dependencies = [
-    "pyyaml>=6.0",
-    "zero-harm-ai-detectors>=0.2.10",
+    "pyyaml>=6.0,<7",
+    "zero-harm-ai-detectors>=0.2.10,<0.3",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
+    "pytest>=8.0,<10",
     "ruff>=0.5",
 ]
 
@@ -28,3 +28,19 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = [
+    "S603",  # subprocess with a list argv is the intended, reviewed nmap call
+    "S607",  # "nmap" is resolved from PATH on purpose (cross-platform)
+    "S314",  # nmap XML comes from the local nmap process, not an untrusted peer
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S108", "E501"]
