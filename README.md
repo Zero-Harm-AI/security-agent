@@ -82,7 +82,21 @@ security-agent --config config/engagement.yaml --dry-run
 
 # Full run (discovery + reporting; stubbed phases are skipped):
 security-agent --config config/engagement.yaml
+
+# Full run with a live status page in the browser:
+security-agent --config config/engagement.yaml --status-web --open-browser
 ```
+
+### Live status page
+
+`--status-web` serves a read-only dashboard while the run proceeds: per-phase
+progress (pending / running / completed / skipped / failed), a running findings
+count, and the audit log feed as it is written. It binds to loopback only
+(`127.0.0.1:8765` by default; change with `--status-host` / `--status-port`)
+and accepts no input. The feed is the same stream that reaches `audit.log`, so
+it is redacted the same way; the page never shows raw evidence, requests, or
+responses. After the run finishes the page stays live until you press Ctrl-C.
+Add `--open-browser` to open it automatically.
 
 ## Test
 

@@ -1,0 +1,28 @@
+# Example engagement configuration.
+# Copy to config/engagement.yaml and fill in per authorized engagement.
+# The agent refuses to run against anything not listed here.
+
+engagement:
+  name: "local-status-page-test"
+  authorized_by: "Tester (self, own machine)"
+  authorization_ref: "local-lab-self-test"
+
+scope:
+  domains: []
+  ip_ranges: ["127.0.0.1"]   # your own loopback only
+  excluded: []
+  time_windows: []
+  rate_limit_rps: 5
+
+permissions:
+  active_scanning: true       # discovery will ask before any scan
+  automated_exploitation: false
+  destructive_checks: false
+  production_testing: false
+
+reporting:
+  evidence_dir: "evidence"
+  redact_secrets: true
+  allow_unscanned_report: true # so the demo runs even without the detectors lib installed
+
+require_human_approval: true

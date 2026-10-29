@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import sys
+import threading
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
@@ -28,6 +30,7 @@ from .components.base import Finding
 from .config import ConfigError, EngagementConfig
 from .evidence import EvidenceStore, detectors_available
 from .scope import Resolver, ScopeError, ScopeGuard, resolve_host
+from .status import StatusLogHandler, StatusServer, StatusTracker
 
 
 class Agent:
@@ -41,6 +44,7 @@ class Agent:
         self.config = config
         self.scope = ScopeGuard(config.scope)
         self._resolver = resolver
+        self.status: StatusTracker | None = None
         evidence_dir = config.reporting.get("evidence_dir", "evidence")
         self.logger = build_logger(evidence_dir=evidence_dir)
         self.evidence = EvidenceStore(
@@ -62,6 +66,21 @@ class Agent:
             AutomationComponent(*deps),
             self.reporting,
         ]
+
+    @property
+    def phase_names(self) -> list[str]:
+        """Phase names in run order, for seeding a status tracker."""
+        return [component.phase for component in self.components]
+
+    def enable_status(self, tracker: StatusTracker) -> None:
+        """Report progress to ``tracker`` and mirror the log feed to it.
+
+        The log handler is attached after any redaction filter (added in
+        ``__init__``), so the feed the status page shows is scrubbed exactly
+        like the audit log.
+        """
+        self.status = tracker
+        self.logger.addHandler(StatusLogHandler(tracker))
 
     def preflight(self, now: datetime | None = None) -> tuple[list[str], list[str]]:
         """Return ``(blocking problems, warnings)`` before any phase runs."""
@@ -94,6 +113,10 @@ class Agent:
     def run(self, now: datetime | None = None) -> list[Finding]:
         targets = self.scope.targets()
         findings: list[Finding] = []
+        current_phase: str | None = None
+        aborted = False
+        if self.status:
+            self.status.start()
         try:
             # Check every target once, before any phase touches anything.
             for target in targets:
@@ -102,18 +125,37 @@ class Agent:
                 if component is self.reporting:
                     continue
                 self.scope.require_time_window(now)
+                current_phase = component.phase
+                if self.status:
+                    self.status.set_phase(component.phase, "running")
                 try:
-                    findings.extend(component.run(targets))
+                    phase_findings = component.run(targets)
                 except NotImplementedError:
                     self.logger.info("%s: phase not implemented yet; skipping", component.phase)
+                    if self.status:
+                        self.status.set_phase(component.phase, "skipped")
+                else:
+                    findings.extend(phase_findings)
+                    if self.status:
+                        self.status.add_findings(len(phase_findings))
+                        self.status.set_phase(component.phase, "completed")
         except ScopeError as exc:
+            aborted = True
             self.logger.error("Aborting run: %s", exc)
             raise
         except Exception:
+            aborted = True
             self.logger.exception("Aborting run after an unexpected error")
             raise
         finally:
+            if self.status and aborted and current_phase:
+                self.status.set_phase(current_phase, "failed")
+            if self.status:
+                self.status.set_phase(self.reporting.phase, "running")
             self.reporting.run(targets)
+            if self.status:
+                self.status.set_phase(self.reporting.phase, "completed")
+                self.status.finish("aborted" if aborted else "completed")
         return findings
 
 
@@ -135,6 +177,28 @@ def main(argv: list[str] | None = None) -> int:
         help="Approve actions beyond standing permissions without prompting (use "
              "only for runs you are supervising and have authorized). High-impact "
              "actions still require a human at the terminal.",
+    )
+    parser.add_argument(
+        "--status-web",
+        action="store_true",
+        help="Serve a live, read-only status page (phase progress and the redacted "
+             "log feed) on loopback while the run proceeds.",
+    )
+    parser.add_argument(
+        "--status-host",
+        default="127.0.0.1",
+        help="Interface for the status page (default: 127.0.0.1; loopback only).",
+    )
+    parser.add_argument(
+        "--status-port",
+        type=int,
+        default=8765,
+        help="Port for the status page (default: 8765).",
+    )
+    parser.add_argument(
+        "--open-browser",
+        action="store_true",
+        help="Open the status page in a browser when --status-web is set.",
     )
     args = parser.parse_args(argv)
 
@@ -163,12 +227,37 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Preflight OK for engagement {config.name!r}.")
         return 0
 
+    server: StatusServer | None = None
+    if args.status_web:
+        tracker = StatusTracker(config.name, agent.phase_names)
+        agent.enable_status(tracker)
+        server = StatusServer(tracker, host=args.status_host, port=args.status_port)
+        url = server.start()
+        print(f"Live status page: {url}")
+        if args.open_browser:
+            webbrowser.open(url)
+
+    exit_code = 0
     try:
         agent.run()
     except ScopeError as exc:
         print(f"Aborting: {exc}", file=sys.stderr)
-        return 1
-    return 0
+        exit_code = 1
+    finally:
+        if server is not None:
+            _serve_until_interrupt(server)
+    return exit_code
+
+
+def _serve_until_interrupt(server: StatusServer) -> None:
+    """Keep the status page live after the run until the operator interrupts."""
+    print(f"\nRun finished. Status page still live at {server.url} "
+          "-- press Ctrl-C to stop serving and exit.")
+    try:
+        threading.Event().wait()  # Block so the final state stays viewable.
+    except KeyboardInterrupt:
+        pass
+    server.stop()
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Discovery phase: command building, scope/approval gating, and nmap handling."""
 
+import logging
 import subprocess
 
 import pytest
@@ -112,6 +113,24 @@ def test_open_ports_become_structured_findings(tmp_path, fake_nmap):
     assert "nmap-10.0.5.0_24" in artifact
     assert (tmp_path / "evidence" / "artifacts").exists()
     assert len(deps[4].findings) == 3
+
+
+def test_open_ports_are_logged(tmp_path, fake_nmap):
+    # Ports must reach the logger (audit log + live status feed), not only the report.
+    cfg = make_config(tmp_path, active_scanning=True, require_approval=False)
+    deps = make_deps(cfg)
+    messages: list[str] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record):
+            messages.append(record.getMessage())
+
+    deps[3].addHandler(_Capture())  # deps[3] is the logger
+    DiscoveryComponent(*deps).run(["10.0.5.0/24"])
+    text = "\n".join(messages)
+    assert "has 2 open port(s)" in text
+    assert "Open port 10.0.5.10:22/tcp (ssh OpenSSH 9.6)" in text
+    assert "Open port 10.0.5.10:443/tcp (https)" in text
 
 
 def test_nmap_missing_records_inconclusive(tmp_path, monkeypatch):

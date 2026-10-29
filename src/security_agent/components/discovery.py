@@ -164,6 +164,9 @@ class DiscoveryComponent(Component):
             )]
 
         summary_evidence["open_ports"] = len(open_ports)
+        # Log the result so it reaches the audit log and the live status feed,
+        # not just the report.
+        self.logger.info("discovery: %s has %d open port(s)", target, len(open_ports))
         findings = [Finding(
             phase=self.phase, target=target,
             title=f"Discovery scan completed: {len(open_ports)} open port(s)",
@@ -173,9 +176,11 @@ class DiscoveryComponent(Component):
         for p in open_ports:
             label = f"{p['host']}:{p['port']}/{p['protocol']}"
             service = " ".join(x for x in (p["service"], p["product"], p["version"]) if x)
+            title = f"Open port {label}" + (f" ({service})" if service else "")
+            self.logger.info("discovery: %s", title)
             findings.append(Finding(
                 phase=self.phase, target=target,
-                title=f"Open port {label}" + (f" ({service})" if service else ""),
+                title=title,
                 confidence="lead",
                 evidence=p,
             ))
